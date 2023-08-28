@@ -62,7 +62,6 @@ class AirfoilCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             i1.addSelectionFilter(adsk.core.SelectionCommandInput.ConstructionPlanes)
             i1.addSelectionFilter(adsk.core.SelectionCommandInput.RootComponents)
 
-
             i2 = inputs.addSelectionInput('SketchPoint', 'Sketch Point', 'Please select a Sketch point')
             i2.addSelectionFilter(adsk.core.SelectionCommandInput.SketchPoints)    
 
