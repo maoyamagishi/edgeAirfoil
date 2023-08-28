@@ -16,7 +16,6 @@ if app:
 product = app.activeProduct
 design = adsk.fusion.Design.cast(product)
 
-
 class AirfoilCommandExecuteHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
