@@ -7,6 +7,108 @@ if app:
 product = app.activeProduct
 design = adsk.fusion.Design.cast(product)
 class Airfoil:
+
+    def AirfoilNameReader(name):
+        # Reading first line with airfoil name
+        object_name = name
+        if(len(object_name)==0): 
+            object_name = "No_name"
+        object_name = object_name.replace(" ", "_")
+        return  object_name
+    
+    def DatFileChecker(Firstrow):
+        # Reading second line for distinguishing file format
+        Lednicer_top = 0
+        Lednicer_bottom = 0
+        second_line = Firstrow
+        line = second_line.strip(' \t')
+        line = line.replace('\t', ' ')
+        line = line.replace(',', ' ')
+        p1 = line.find(".")
+        p2 = line.find(" ")
+        p3 = line.rfind(".")
+        try:
+            x = int(line[0:p1])
+        except ValueError:
+            ui.messageBox('Wrong file format. Cannot convert first string to number.', 'Error')
+            return
+        try:
+            y = int(line[p2+1:p3])
+        except ValueError:
+            ui.messageBox('Wrong file format. Cannot convert second string to number.', 'Error')
+            return
+        
+        if x > 1:
+            # Lednicer DAT format
+            DATformat = 2
+            Lednicer_top = x
+            Lednicer_bottom = y
+        elif x == 1:
+            # Selig DAT format
+            DATformat = 1
+        else:
+            msg = ''
+            msg += '\nUnknown DAT format'
+            ui.messageBox(msg, 'Error')
+            return
+        
+        return DATformat ,Lednicer_top,Lednicer_bottom
+
+    
+    def DAT2List2(datfile,filesize,starposition):
+        coordX = []
+        coordY = []
+        for ii in range(filesize ):
+            line = datfile[ii +1 + starposition]
+            line = line.strip(' \t')
+            line = line.replace('\t', ' ')
+            line = line.replace(',', ' ')
+            p1 = line.find(" ")
+            p2 = line.rfind(" ")
+            try:
+                x = float(line[0:p1])
+            except ValueError:
+                ui.messageBox('Wrong file format. Cannot convert X coordinate.', 'Error')
+                break
+            try:
+                y = float(line[p2+1:])
+            except ValueError:
+                ui.messageBox('Wrong file format. Cannot convert Y coordinate.', 'Error')
+                break
+            coordX.append(x)
+            coordY.append(y)
+            # Reading next line with coordinates
+        return coordX,coordY
+
+    def DatHandler(datfile,DATformat,Lednicer_top,Lednicer_bottom):
+        # Reading file into array
+        if DATformat == 1: # Selig
+            filesize = len(datfile) -1
+            coXY = Airfoil.DAT2List2(datfile,filesize,0)
+            coordX = coXY[0]
+            coordY = coXY[1]
+
+        # Reading file into array with following processing
+        elif DATformat == 2: # Lednicer
+
+            coXY1 = Airfoil.DAT2List2(datfile,Lednicer_top -1,0)
+            coordX1 = coXY1[0]
+            coordY1 = coXY1[1]
+
+            coXY2 = Airfoil.DAT2List2(datfile,Lednicer_bottom -1,Lednicer_top)
+            coordX2 = coXY2[0]
+            coordY2 = coXY2[1]
+
+            # Need to join two arrays in correct way
+            for i in reversed(range(len(coordX1))):
+                coordX.append(coordX1[i])
+                coordY.append(coordY1[i])
+            for i in range(1, len(coordX2)):
+                coordX.append(coordX2[i])
+                coordY.append(coordY2[i])
+        
+        return coordX ,coordY
+
     def Execute(self, Plane, Point1, Point2):
         coordX = [] # result array for spline
         coordY = [] # result array for spline
@@ -22,7 +124,6 @@ class Airfoil:
         consPoint2 = adsk.core.Point3D.create(Point2.geometry.x,Point2.geometry.y,Point2.geometry.z)        
         measureResult = app.measureManager.measureMinimumDistance(consPoint1, consPoint2)
         Chord = measureResult.value
-        ScaleY = Chord
         rootComp = design.rootComponent
 
 
@@ -65,141 +166,26 @@ class Airfoil:
 #        translationMatrix.translation = adsk.core.Vector3D.create(OffsetX, OffsetY, 0.0)
 
         points = adsk.core.ObjectCollection.create()
+        datfile = f.readlines()
 
-        # Reading first line with airfoil name
-        object_name = f.readline()
-        object_name = object_name.strip()
-        if(len(object_name)==0): object_name = "No_name"
-        object_name = object_name.replace(" ", "_")
-        object_name = object_name + "_" + str(ScaleY)
+        filename = Airfoil.AirfoilNameReader(datfile[0])
+        object_name = filename
+        
         while True:
             try:
                 Plane.name = object_name
                 break
             except RuntimeError:
                 print("Renaming of this type of planes is not supported on this platform...")
-
-        # Reading second line for distinguishing file format
-        second_line = f.readline()
-        line = second_line.strip(' \t')
-        line = line.replace('\t', ' ')
-        line = line.replace(',', ' ')
-        p1 = line.find(".")
-        p2 = line.find(" ")
-        p3 = line.rfind(".")
-        try:
-            x = int(line[0:p1])
-        except ValueError:
-            ui.messageBox('Wrong file format. Cannot convert first string to number.', 'Error')
-            return
-        try:
-            y = int(line[p2+1:p3])
-        except ValueError:
-            ui.messageBox('Wrong file format. Cannot convert second string to number.', 'Error')
-            return
-        #ui.messageBox('Top: {} Bottom: {}' .format(x, y) )
         
-        if x > 1:
-            # Lednicer DAT format
-            DATformat = 2
-            Lednicer_top = x
-            Lednicer_bottom = y
-        elif x == 1:
-            # Selig DAT format
-            DATformat = 1
-        else:
-            msg += '\nUnknown DAT format'
-            ui.messageBox(msg, 'Error')
-            return
-
-        # Reading file into array
-        if DATformat == 1: # Selig
-            while line:
-                line = line.strip(' \t')
-                line = line.replace('\t', ' ')
-                line = line.replace(',', ' ')
-                p1 = line.find(" ")
-                p2 = line.rfind(" ")
-                try:
-                    x = float(line[0:p1])
-                except ValueError:
-                    ui.messageBox('Wrong file format. Cannot convert X coordinate.', 'Error')
-                    break
-                try:
-                    y = float(line[p2+1:])
-                except ValueError:
-                    ui.messageBox('Wrong file format. Cannot convert Y coordinate.', 'Error')
-                    break
-                coordX.append(x)
-                coordY.append(y)
-                # Reading next line with coordinates
-                line = f.readline()
-            f.close()
-
-        # Reading file into array with following processing
-        elif DATformat == 2: # Lednicer
-
-            # Reading empty line without coordinates
-            line = f.readline()
-
-            t = 0 # Counter for top lines
-            b = 0 # Counter for bottom lines
-
-            while t < Lednicer_top:
-                # Reading next line with coordinates
-                line = f.readline()
-                line = line.strip(' \t')
-                line = line.replace('\t', ' ')
-                line = line.replace(',', ' ')
-                #ui.messageBox(line, 'Debug')
-                p1 = line.find(" ")
-                p2 = line.rfind(" ")
-                try:
-                    x = float(line[0:p1])
-                except ValueError:
-                    ui.messageBox('Wrong file format. Cannot convert X coordinate.', 'Error')
-                    break
-                try:
-                    y = float(line[p2+1:])
-                except ValueError:
-                    ui.messageBox('Wrong file format. Cannot convert Y coordinate.', 'Error')
-                    break
-                coordX1.append(x)
-                coordY1.append(y)
-                t = t + 1
-            
-            # Reading empty line without coordinates
-            line = f.readline()
-
-            for i in range(Lednicer_bottom -1):
-                # Reading next line with coordinates
-                line = f.readline()
-                line = line.strip(' \t')
-                line = line.replace('\t', ' ')
-                line = line.replace(',', ' ')
-                p1 = line.find(" ")
-                p2 = line.rfind(" ")
-                try:
-                    x = float(line[0:p1])
-                except ValueError:
-                    ui.messageBox('Wrong file format. Cannot convert X coordinate.', 'Error')
-                    break
-                try:
-                    y = float(line[p2+1:])
-                except ValueError:
-                    ui.messageBox('Wrong file format. Cannot convert Y coordinate.', 'Error')
-                    break
-                coordX2.append(x)
-                coordY2.append(y)
-            f.close()
-
-            # Need to join two arrays in correct way
-            for i in reversed(range(len(coordX1))):
-                coordX.append(coordX1[i])
-                coordY.append(coordY1[i])
-            for i in range(1, len(coordX2)):
-                coordX.append(coordX2[i])
-                coordY.append(coordY2[i])
+        formatAndDatas = Airfoil.DatFileChecker(datfile[1])
+        DATformat = formatAndDatas[0]
+        Lednicer_top = formatAndDatas[1]
+        Lednicer_bottom = formatAndDatas[2]
+ 
+        COORDs = Airfoil.DatHandler(datfile,DATformat,Lednicer_top,Lednicer_bottom)   
+        coordX = COORDs[0]
+        coordY = COORDs[1]    
         
         xlist = coordX.copy()
         ylist = coordX.copy()
